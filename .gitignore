@@ -1,0 +1,17 @@
+# Sensitive Configurations
+js/firebase-config.js
+
+# OS & Environment Artefacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node & Package Dependencies
+node_modules/
+package-lock.json
+
+# Mobile Build Assets & Intermediate Directories
+www/
+android/
+ios/

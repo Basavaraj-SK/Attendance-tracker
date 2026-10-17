@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" class="w-full overflow-x-hidden">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>AttendFlow - Attendance Tracker</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <!-- Razorpay Checkout -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen w-full overflow-x-hidden flex flex-col antialiased pb-24 md:pb-12">
+
+  <!-- ================= AUTHENTICATION MODAL ================= -->
+  <div id="authModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto custom-scrollbar">
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 sm:w-14 sm:h-14 bg-indigo-100 text-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-3">
+          <i data-lucide="graduation-cap" class="w-7 h-7 sm:w-8 sm:h-8"></i>
+        </div>
+        <h3 id="authTitle" class="text-xl sm:text-2xl font-bold text-slate-900">Welcome to AttendFlow</h3>
+        <p id="authSubtitle" class="text-xs text-slate-500 mt-1">Sign in to sync your timetable and calculate safe bunks.</p>
+      </div>
+
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3.5">
+        <div id="authNameField" class="hidden">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+          <input type="text" id="authName" placeholder="e.g. Basavaraj" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+          <input type="email" id="authEmail" required placeholder="student@college.edu" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+          <input type="password" id="authPassword" required placeholder="••••••••" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+          <div class="text-right mt-1">
+            <button type="button" onclick="handleForgotPassword()" class="text-[11px] text-indigo-600 hover:underline font-semibold">
+              Forgot Password?
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="authSubmitBtn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl text-sm shadow-md transition active:scale-95">
+          Sign In
+        </button>
+      </form>
+
+      <div class="relative my-4">
+        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200"></div></div>
+        <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-slate-400 font-semibold">Or</span></div>
+      </div>
+
+      <button type="button" onclick="handleGoogleSignIn()" class="w-full py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-95">
+        <svg class="w-4 h-4" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+        </svg>
+        Sign In with Google
+      </button>
+
+      <div class="mt-5 text-center text-xs text-slate-500">
+        <span id="authTogglePrompt">Don't have an account?</span>
+        <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="text-indigo-600 font-bold hover:underline ml-1">
+          Sign Up
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PAYWALL OVERLAY ================= -->
+  <div id="paywallModal" class="fixed inset-0 bg-slate-900/85 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-indigo-100 text-center">
+      <div class="w-14 h-14 sm:w-16 sm:h-16 bg-amber-100 text-amber-600 rounded-3xl mx-auto flex items-center justify-center mb-3 ring-8 ring-amber-50">
+        <i data-lucide="lock" class="w-7 h-7 sm:w-8 sm:h-8"></i>
+      </div>
+      <span class="px-3 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full uppercase tracking-wider">Premium Access</span>
+      <h3 class="text-xl sm:text-2xl font-bold text-slate-900 mt-2">Activate Your Account</h3>
+      <p class="text-xs text-slate-500 mt-1">One-time access fee to unlock timetable, cloud sync, and the bunk forecaster.</p>
+
+      <div class="bg-slate-50 rounded-2xl p-4 my-5 border border-slate-200">
+        <span class="text-[11px] text-slate-500 uppercase font-semibold">One-Time Fee</span>
+        <div class="text-3xl sm:text-4xl font-extrabold text-slate-900 mt-1">
+          <span class="text-xl">₹</span><span id="paywallPriceDisplay">99</span>
+        </div>
+        <p class="text-[10px] text-emerald-600 font-medium mt-1">✓ Lifetime access on all devices</p>
+      </div>
+
+      <button onclick="initiatePayment()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition active:scale-95 flex items-center justify-center gap-2">
+        <i data-lucide="credit-card" class="w-4 h-4"></i>
+        <span>Pay with UPI / Razorpay</span>
+      </button>
+
+      <button onclick="handleSignOut()" class="mt-3.5 text-xs text-slate-400 hover:text-slate-600 font-medium">
+        Sign out and switch account
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= APP HEADER ================= -->
+  <header id="appHeader" class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs w-full hidden">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-14 sm:h-16 gap-2 w-full">
+        
+        <!-- Left: Calendar Icon, App Title & Full Name Pill -->
+        <div class="flex items-center gap-2 min-w-0">
+          <button id="calendarToggleBtn" onclick="toggleCalendarPopover(event)" class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 flex items-center justify-center text-white shadow-xs">
+            <i data-lucide="calendar" class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none"></i>
+          </button>
+
+          <div class="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+            <h1 class="text-sm sm:text-lg font-bold text-slate-900 leading-tight shrink-0">AttendFlow</h1>
+            <!-- Full Name Display (No width limit or ellipsis) -->
+            <span id="userDisplayNamePill" class="text-[10px] sm:text-xs px-2 py-0.5 font-bold uppercase rounded-full bg-indigo-100 text-indigo-700 shrink-0 whitespace-nowrap">User</span>
+            <span id="adminBadge" class="hidden text-[10px] sm:text-xs px-2 py-0.5 font-bold uppercase rounded-full bg-purple-100 text-purple-700 shrink-0 whitespace-nowrap">Admin</span>
+          </div>
+        </div>
+
+        <!-- Right: Actions (Clock & Sound toggle hidden on small phones to give full space to name) -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <!-- Live Clock (Desktop & Tablet only) -->
+          <div class="hidden sm:flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-full text-xs font-medium text-slate-700">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="liveClock" class="font-mono font-semibold">--:--</span>
+          </div>
+
+          <!-- Audio Toggle (Desktop & Tablet only) -->
+          <button id="audioToggleBtn" onclick="toggleAudio()" class="hidden sm:inline-flex p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 bg-slate-100 rounded-lg">
+            <i data-lucide="volume-2" class="w-3.5 h-3.5 sm:w-4 sm:h-4" id="audioIcon"></i>
+          </button>
+
+          <!-- Logout Button -->
+          <button onclick="handleSignOut()" class="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition shrink-0 flex items-center gap-1" title="Logout">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Calendar Popover Menu -->
+      <div id="calendarPopover" class="hidden absolute top-14 left-3 sm:left-6 w-72 sm:w-88 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3.5 animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="calendar-check-2" class="w-4 h-4 text-indigo-600"></i>
+            <span id="popoverMonthYear" class="text-xs font-bold text-slate-900 uppercase"></span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="navCalMonth(-1, event)" class="p-1 rounded-lg hover:bg-slate-100 text-slate-600">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="navCalMonth(1, event)" class="p-1 rounded-lg hover:bg-slate-100 text-slate-600">
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="closeCalendarPopover()" class="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 text-center font-bold text-[10px] text-slate-400 mb-1">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div id="popoverCalendarGrid" class="grid grid-cols-7 gap-1 text-center text-xs"></div>
+
+        <div id="popoverDayDetails" class="mt-2.5 pt-2.5 border-t border-slate-100 hidden">
+          <div class="flex items-center justify-between mb-1.5">
+            <h5 id="popoverSelectedDateTitle" class="text-[10px] font-bold text-slate-700 uppercase"></h5>
+            <span id="popoverSelectedSummary" class="text-[10px] font-semibold text-slate-500"></span>
+          </div>
+          <div id="popoverDayLogsList" class="space-y-1 max-h-32 overflow-y-auto pr-1"></div>
+          <div class="mt-2 pt-1.5 border-t border-slate-100 flex justify-end">
+            <button id="popoverHolidayActionBtn" class="text-[10px] font-bold px-2 py-1 rounded-lg border"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Tabs (Hidden on small mobile screens) -->
+      <nav class="hidden md:flex gap-4 -mb-px overflow-x-auto pt-2 text-sm font-medium border-t border-slate-100">
+        <button onclick="switchTab('agenda')" id="tab-agenda" class="tab-btn pb-3 px-1 border-b-2 border-indigo-600 text-indigo-600 font-semibold flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="calendar" class="w-4 h-4"></i> Today's Schedule
+        </button>
+        <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="pie-chart" class="w-4 h-4"></i> Monthly & Bunk Stats
+        </button>
+        <button onclick="switchTab('timetable')" id="tab-timetable" class="tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="book-open" class="w-4 h-4"></i> Timetable & Routine
+        </button>
+        <button onclick="switchTab('history')" id="tab-history" class="tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="history" class="w-4 h-4"></i> History Logs
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= ADMIN PRICING BAR ================= -->
+  <section id="adminPricingBar" style="display: none;" class="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-3">
+    <div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-2xl p-3 shadow-md flex items-center justify-between gap-2 w-full">
+      <div class="flex items-center gap-2 min-w-0">
+        <i data-lucide="shield-check" class="w-5 h-5 text-purple-300 shrink-0"></i>
+        <div class="min-w-0">
+          <span class="text-[9px] font-bold uppercase text-purple-200 block">Admin Control</span>
+          <p class="text-xs font-semibold truncate">Student Fee</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <div class="flex items-center bg-white text-slate-900 rounded-xl px-2 py-1 font-bold text-xs">
+          <span>₹</span>
+          <input type="number" id="adminPriceInput" min="0" value="99" class="w-12 outline-none font-bold ml-1 text-xs" />
+        </div>
+        <button onclick="saveAdminPrice()" class="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition">
+          Save
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAIN APP BODY ================= -->
+  <main id="appMainContent" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 hidden">
+
+    <!-- Notification Prompt Banner -->
+    <div id="notifBanner" class="hidden mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3.5 rounded-2xl shadow flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="p-1.5 bg-white/20 rounded-xl"><i data-lucide="bell" class="w-4 h-4"></i></div>
+        <p class="font-semibold text-xs leading-snug">Allow period start alerts?</p>
+      </div>
+      <button onclick="requestNotificationPermission()" class="px-3 py-1.5 bg-white text-indigo-700 font-bold text-xs rounded-xl shadow transition">
+        Enable
+      </button>
+    </div>
+
+    <!-- Tab 1: Today's Schedule -->
+    <section id="view-agenda" class="tab-view space-y-4">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-xs flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="currentDayBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700">Today</span>
+              <span id="currentDateFull" class="text-xs font-medium text-slate-500">Loading...</span>
+              <span id="todayHolidayBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">Holiday</span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">Today's Lectures</h2>
+          </div>
+          <button id="todayHolidayBtn" onclick="toggleTodayHoliday()" class="self-start sm:self-auto px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 flex items-center gap-1.5 hover:bg-slate-50 shadow-xs">
+            <i data-lucide="sun" class="w-3.5 h-3.5 pointer-events-none"></i>
+            <span>Mark Holiday</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+          <div class="bg-slate-50 border border-slate-100 rounded-xl py-1.5">
+            <span class="text-[10px] text-slate-500 block">Total</span>
+            <span id="todayTotalCount" class="text-base font-bold text-slate-800">0</span>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-100 rounded-xl py-1.5">
+            <span class="text-[10px] text-emerald-600 block">Present</span>
+            <span id="todayAttendedCount" class="text-base font-bold text-emerald-700">0</span>
+          </div>
+          <div class="bg-rose-50 border border-rose-100 rounded-xl py-1.5">
+            <span class="text-[10px] text-rose-600 block">Absent</span>
+            <span id="todayBunkedCount" class="text-base font-bold text-rose-700">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="todayCardsContainer" class="space-y-3"></div>
+    </section>
+
+    <!-- Tab 2: Monthly Analytics & Safe Bunk Calculator -->
+    <section id="view-analytics" class="tab-view hidden space-y-4">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center justify-between sm:justify-start gap-2">
+          <label class="text-xs font-semibold text-slate-700">Month:</label>
+          <input type="month" id="filterMonth" class="border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-semibold bg-slate-50" />
+        </div>
+        <div class="flex items-center justify-between sm:justify-end gap-2">
+          <span class="text-xs font-semibold text-slate-600">Target %:</span>
+          <div class="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white">
+            <input type="number" id="globalTargetInput" min="1" max="100" value="75" class="w-12 px-1.5 py-1 text-xs font-bold text-center outline-none" />
+            <span class="bg-slate-100 px-2 py-1 text-xs text-slate-500 font-semibold border-l border-slate-300">%</span>
+          </div>
+          <button onclick="updateGlobalTarget()" class="text-xs bg-slate-800 text-white font-semibold px-2.5 py-1.5 rounded-xl">Apply</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+          <span class="text-slate-500 text-[10px] sm:text-xs font-bold uppercase">Overall Attendance</span>
+          <div class="mt-1.5 flex items-baseline gap-2">
+            <span id="metricOverallPct" class="text-2xl sm:text-3xl font-extrabold text-slate-900">0%</span>
+            <span id="metricTargetCompare" class="text-[10px] font-semibold text-emerald-600">Goal: 75%</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
+            <div id="metricProgressBar" class="bg-indigo-600 h-full rounded-full transition-all" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <span class="text-slate-500 text-[10px] sm:text-xs font-bold uppercase">Attended</span>
+          <div class="mt-1.5 text-2xl sm:text-3xl font-extrabold text-slate-900" id="metricAttendedTotal">0</div>
+          <p id="metricTotalHeld" class="text-[10px] text-slate-400 mt-1 truncate">classes held</p>
+        </div>
+
+        <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <span class="text-slate-500 text-[10px] sm:text-xs font-bold uppercase">Bunked</span>
+          <div class="mt-1.5 text-2xl sm:text-3xl font-extrabold text-slate-900" id="metricBunkedTotal">0</div>
+          <p class="text-[10px] text-slate-400 mt-1">missed classes</p>
+        </div>
+
+        <div class="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+          <span class="text-slate-500 text-[10px] sm:text-xs font-bold uppercase">Bunk Forecast</span>
+          <div class="mt-1.5 text-base sm:text-lg font-bold text-slate-800" id="metricBunkVerdict">Calculating...</div>
+          <p class="text-[10px] text-slate-400 mt-0.5">Real-time status</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-6">
+        <h3 class="text-base font-bold text-slate-900 mb-3">Subject-Wise Breakdown</h3>
+        <div id="subjectAnalyticsList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Subjects & Timetable Routine -->
+    <section id="view-timetable" class="tab-view hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-slate-900">Weekly Routine</h2>
+          <p class="text-xs text-slate-500">Configure timetable and room details.</p>
+        </div>
+        <button onclick="openSubjectModal()" class="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs transition">
+          <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i> Add
+        </button>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5">
+        <h3 class="font-bold text-sm text-slate-900 mb-2">Schedule by Day</h3>
+        <div class="overflow-x-auto custom-scrollbar pb-2">
+          <div class="grid grid-cols-7 gap-2 min-w-[620px]" id="weeklyGridContainer"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6">
+        <h3 class="font-bold text-sm text-slate-900 mb-2">Subject List</h3>
+        <div id="subjectsDirectoryList" class="divide-y divide-slate-100"></div>
+      </div>
+    </section>
+
+    <!-- Tab 4: History Logs -->
+    <section id="view-history" class="tab-view hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold text-slate-900">Log History</h2>
+          <div class="flex items-center gap-1.5">
+            <button onclick="exportLogsToCSV()" class="text-xs text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1">
+              <i data-lucide="download" class="w-3.5 h-3.5 pointer-events-none"></i> CSV
+            </button>
+            <button onclick="clearAllLogsConfirmation()" class="text-xs text-rose-600 border border-rose-200 px-2 py-1 rounded-xl font-medium">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs text-slate-600 min-w-[400px]">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] border-b">
+              <tr>
+                <th class="px-3 py-2">Date</th>
+                <th class="px-3 py-2">Subject</th>
+                <th class="px-3 py-2">Time</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2 text-right">Del</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= MOBILE BOTTOM APP NAVIGATION ================= -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 mobile-safe-bottom flex justify-around items-center px-1 py-1 shadow-lg pointer-events-auto">
+    <button type="button" onclick="switchTab('agenda')" id="m-tab-agenda" class="mobile-tab-btn flex flex-col items-center justify-center flex-1 py-1.5 text-indigo-600 font-bold transition active:scale-95 touch-manipulation">
+      <i data-lucide="calendar" class="w-5 h-5 mb-0.5 pointer-events-none"></i>
+      <span class="text-[10px] pointer-events-none">Today</span>
+    </button>
+    <button type="button" onclick="switchTab('analytics')" id="m-tab-analytics" class="mobile-tab-btn flex flex-col items-center justify-center flex-1 py-1.5 text-slate-400 font-medium transition active:scale-95 touch-manipulation">
+      <i data-lucide="pie-chart" class="w-5 h-5 mb-0.5 pointer-events-none"></i>
+      <span class="text-[10px] pointer-events-none">Stats</span>
+    </button>
+    <button type="button" onclick="switchTab('timetable')" id="m-tab-timetable" class="mobile-tab-btn flex flex-col items-center justify-center flex-1 py-1.5 text-slate-400 font-medium transition active:scale-95 touch-manipulation">
+      <i data-lucide="book-open" class="w-5 h-5 mb-0.5 pointer-events-none"></i>
+      <span class="text-[10px] pointer-events-none">Routine</span>
+    </button>
+    <button type="button" onclick="switchTab('history')" id="m-tab-history" class="mobile-tab-btn flex flex-col items-center justify-center flex-1 py-1.5 text-slate-400 font-medium transition active:scale-95 touch-manipulation">
+      <i data-lucide="history" class="w-5 h-5 mb-0.5 pointer-events-none"></i>
+      <span class="text-[10px] pointer-events-none">Logs</span>
+    </button>
+  </nav>
+
+  <!-- ================= ADD / EDIT SUBJECT MODAL ================= -->
+  <div id="subjectModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85vh] overflow-y-auto custom-scrollbar">
+      <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
+        <h3 id="subjectModalTitle" class="text-base font-bold text-slate-900">Add Subject</h3>
+        <button onclick="closeSubjectModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5 pointer-events-none"></i>
+        </button>
+      </div>
+
+      <form id="subjectForm" onsubmit="saveSubject(event)" class="space-y-3.5 mt-3 text-xs">
+        <input type="hidden" id="subFormId" />
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Subject Name *</label>
+            <input type="text" id="subFormName" required placeholder="e.g. Operating Systems" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Subject Code *</label>
+            <input type="text" id="subFormCode" required placeholder="e.g. CS301" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono uppercase" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Professor Name</label>
+            <input type="text" id="subFormProfName" placeholder="Dr. Sharma" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Room / Cabin</label>
+            <input type="text" id="subFormRoom" placeholder="Room 3B" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Required Target %</label>
+          <input type="number" id="subFormTarget" min="1" max="100" value="75" class="w-full px-3 py-2 border border-slate-300 rounded-xl outline-none text-sm font-bold" />
+        </div>
+
+        <div class="pt-2.5 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-slate-800">Class Timings</span>
+            <button type="button" onclick="addSlotRow()" class="text-xs text-indigo-600 font-bold flex items-center gap-1">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5 pointer-events-none"></i> Add Slot
+            </button>
+          </div>
+          <div id="slotsContainer" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1"></div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeSubjectModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= PERIOD START ALERT MODAL ================= -->
+  <div id="periodAlertModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-indigo-100 text-center animate-in fade-in zoom-in duration-200">
+      <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-3 ring-8 ring-indigo-50 animate-bounce">
+        <i data-lucide="alarm-clock" class="w-6 h-6"></i>
+      </div>
+      <span class="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold rounded-full uppercase tracking-wider">Period Starting Now</span>
+      <h3 id="alertSubjectName" class="text-lg font-bold text-slate-900 mt-2">Subject Name</h3>
+      <p id="alertSubjectDetails" class="text-xs text-slate-500 mt-0.5">CS301 • Faculty</p>
+
+      <div class="bg-slate-50 rounded-xl p-2.5 my-4 border border-slate-200 text-xs text-slate-600 flex items-center justify-between font-mono">
+        <span>Time:</span>
+        <span id="alertSlotTime" class="font-bold text-slate-800">09:00 - 10:00 AM</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <button id="alertBunkBtn" class="py-3 px-3 rounded-xl border-2 border-rose-200 text-rose-700 font-bold text-xs active:bg-rose-50">Absent</button>
+        <button id="alertPresentBtn" class="py-3 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow active:bg-emerald-700">Present</button>
+      </div>
+
+      <div class="mt-3.5 flex justify-between items-center text-xs text-slate-400">
+        <button onclick="dismissPeriodAlert()" class="hover:text-slate-600">Dismiss</button>
+        <button id="alertCancelledBtn" class="text-amber-600 font-medium">Class Cancelled</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TOAST NOTIFICATION ================= -->
+  <div id="toastMessage" class="fixed bottom-20 md:bottom-5 right-4 left-4 sm:left-auto sm:right-5 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 transform translate-y-24 opacity-0 transition-all duration-300 z-50 text-xs">
+    <i data-lucide="info" class="w-4 h-4 text-indigo-400" id="toastIcon"></i>
+    <span id="toastText">Operation completed</span>
+  </div>
+
+  <!-- Split Script Dependencies -->
+  <script src="js/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
